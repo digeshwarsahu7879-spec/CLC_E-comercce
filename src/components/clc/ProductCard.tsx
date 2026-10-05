@@ -6,7 +6,20 @@ import { useClc } from "@/lib/clc/store";
 export function Pack({ tone, className = "", image }: { tone?: string; className?: string; image?: string }) {
   if (image) {
     return (
-      <div className={`pack has-image ${className}`} style={{ backgroundImage: `url(${image})`, backgroundSize: "cover", backgroundPosition: "center" }} />
+      <div
+        className={`pack has-image ${className}`}
+        style={{
+          backgroundImage: `url(${image})`,
+          backgroundSize: "contain",
+          backgroundRepeat: "no-repeat",
+          backgroundPosition: "center",
+          backgroundColor: "#fff",
+          width: "100%",
+          height: "100%",
+          boxShadow: "none",
+          borderRadius: 12,
+        }}
+      />
     );
   }
   return <div className={`pack ${tone || ""} ${className}`} />;
@@ -25,7 +38,7 @@ export function ProductCard({ p }: { p: Product & { stock?: number } }) {
 
   return (
     <article className="card prod-card">
-      <Link to="/product/$slug" params={{ slug: p.slug }} className="prod-img">
+      <Link to="/product/$slug" params={{ slug: p.slug }} className="prod-img" style={img ? { background: "#fff", height: 220 } : undefined}>
         <Pack tone={p.tone} image={img} />
         <div className="prod-badges">
           {p.off > 0 ? <span className="badge badge-sale">{p.off}% off</span> : null}
