@@ -29,8 +29,8 @@ export type Category = {
 export const MAX_PRODUCT_IMAGES = 5;
 export const MAX_IMAGE_BYTES = 1.5 * 1024 * 1024;
 
-/** Build marker — if you see this string in the live JS bundle, the new deploy is active. */
-export const CATALOG_BUILD_MARKER = "CLC_CATALOG_EMPTY_V6_NO_PREBUILT_20261005";
+/** Build marker — if you see this in the live JS, the empty-catalog deploy is active. */
+export const CATALOG_BUILD_MARKER = "CLC_EMPTY_CATALOG_V7_20261005";
 
 export function primaryImage(p: { image?: string; images?: string[] } | null | undefined): string | undefined {
   if (!p) return undefined;
@@ -60,7 +60,11 @@ export const CATEGORIES: Category[] = [
   { slug: "health-devices", name: "Devices", desc: "Home monitoring", image: "/images/cat-devices.jpg" },
 ];
 
-/** Always empty. Demo products permanently removed. */
+/**
+ * Seed catalog is permanently empty.
+ * All 25 demo products (Paracetamol, Ibuprofen, etc.) are removed.
+ * Admin can add real products from Admin → Products.
+ */
 export const PRODUCTS: Product[] = [];
 
 export const DEMO_USERS = [
