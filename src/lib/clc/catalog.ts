@@ -15,9 +15,7 @@ export type Product = {
   desc: string;
   ingredients: string;
   directions: string;
-  /** Primary product image (first of images, kept for compatibility). */
   image?: string;
-  /** Up to MAX_PRODUCT_IMAGES photos (data URLs or https URLs). */
   images?: string[];
 };
 
@@ -28,20 +26,18 @@ export type Category = {
   image: string;
 };
 
-/** Maximum photos an admin can attach to one product. */
 export const MAX_PRODUCT_IMAGES = 5;
-
-/** Max size per photo in bytes (1.5 MB) when uploading from gallery. */
 export const MAX_IMAGE_BYTES = 1.5 * 1024 * 1024;
 
-/** Resolve the main photo shown on cards and listings. */
+/** Build marker — if you see this string in the live JS bundle, the new deploy is active. */
+export const CATALOG_BUILD_MARKER = "CLC_CATALOG_EMPTY_V5_20261005";
+
 export function primaryImage(p: { image?: string; images?: string[] } | null | undefined): string | undefined {
   if (!p) return undefined;
   if (p.images && p.images.length > 0) return p.images[0];
   return p.image || undefined;
 }
 
-/** Normalize a list of image strings to at most MAX_PRODUCT_IMAGES non-empty values. */
 export function normalizeImages(list?: string[] | null, fallback?: string): string[] {
   const out: string[] = [];
   const push = (v: string | undefined) => {
@@ -64,14 +60,9 @@ export const CATEGORIES: Category[] = [
   { slug: "health-devices", name: "Devices", desc: "Home monitoring", image: "/images/cat-devices.jpg" },
 ];
 
-/**
- * Seed catalog intentionally empty.
- * All previous demo products (Paracetamol, Ibuprofen, etc.) were removed.
- * Add real products from Admin → Products.
- */
+/** Always empty. Demo products permanently removed. */
 export const PRODUCTS: Product[] = [];
 
-/** Admin login only (not shown on the login page). */
 export const DEMO_USERS = [
   { email: "admin@clc.com", password: "admin123", name: "CLC Administrator", role: "admin" as const },
 ];
