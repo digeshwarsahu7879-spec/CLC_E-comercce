@@ -100,6 +100,7 @@ type ClcState = {
   updateProduct: (id: string, input: Partial<ProductInput>) => Product | null;
   removeProduct: (id: string) => void;
   applyCatalogOverrides: (rows: Array<{ id: string; isCustom: boolean; isDeleted: boolean; data: Partial<Product>; stock: number | null }>) => void;
+  clearAllProductsLocal: () => void;
   addToCart: (id: string, qty?: number) => boolean;
   setQty: (id: string, qty: number) => void;
   removeFromCart: (id: string) => void;
@@ -122,6 +123,7 @@ function mergeCatalog(
   deleted: string[],
 ): Product[] {
   const deletedSet = new Set(deleted);
+  // PRODUCTS seed is empty — only non-deleted custom products appear.
   const base = PRODUCTS.filter((p) => !deletedSet.has(p.id)).map((p) => {
     const e = edits[p.id];
     return e ? { ...p, ...e, id: p.id } : p;
@@ -178,6 +180,16 @@ export const useClc = create<ClcState>()(
         return get().setStock(id, next);
       },
       resetStock: () => set({ stock: {} }),
+      clearAllProductsLocal: () => {
+        set({
+          customProducts: [],
+          productEdits: {},
+          deletedProductIds: [],
+          stock: {},
+          cart: {},
+          wish: [],
+        });
+      },
       addProduct: (input) => {
         const name = (input.name || "").trim();
         const brand = (input.brand || "").trim() || "CLC";
@@ -289,21 +301,27 @@ export const useClc = create<ClcState>()(
         get().showToast("Product removed");
       },
       applyCatalogOverrides: (rows) => {
-        if (!rows || rows.length === 0) {
-          return;
-        }
+        // Always rebuild from DB rows. Empty array = clear everything.
         const customProducts: Product[] = [];
         const productEdits: Record<string, Partial<Product>> = {};
         const deletedProductIds: string[] = [];
-        const stock: Record<string, number> = { ...get().stock };
+        const stock: Record<string, number> = {};
 
         for (const row of rows || []) {
-          if (row.isDeleted) deletedProductIds.push(row.id);
-          if (row.isCustom && !row.isDeleted) {
+          if (row.isDeleted) {
+            deletedProductIds.push(row.id);
+            continue;
+          }
+          if (row.isCustom) {
             const p = row.data as Product;
-            if (p && typeof p === "object" && p.name) customProducts.push({ ...p, id: row.id });
-          } else if (!row.isCustom && row.data && typeof row.data === "object") {
-            productEdits[row.id] = { ...row.data, id: row.id };
+            if (p && typeof p === "object" && p.name) {
+              customProducts.push({ ...p, id: row.id });
+            }
+          } else if (row.data && typeof row.data === "object") {
+            // Only keep edits for products that still exist in seed PRODUCTS
+            if (PRODUCTS.some((p) => p.id === row.id)) {
+              productEdits[row.id] = { ...row.data, id: row.id };
+            }
           }
           if (row.stock != null) stock[row.id] = Math.max(0, Number(row.stock) || 0);
         }
@@ -450,7 +468,8 @@ export const useClc = create<ClcState>()(
         deletedProductIds: s.deletedProductIds,
         prescriptions: s.prescriptions,
       }),
-      version: 3,
+      // Version 4: force-clear any leftover seed/custom catalog from older builds.
+      version: 4,
       migrate: () => ({
         cart: {},
         wish: [],
