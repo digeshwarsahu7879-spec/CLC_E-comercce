@@ -30,7 +30,7 @@ export const MAX_PRODUCT_IMAGES = 5;
 export const MAX_IMAGE_BYTES = 1.5 * 1024 * 1024;
 
 /** Build marker — if you see this string in the live JS bundle, the new deploy is active. */
-export const CATALOG_BUILD_MARKER = "CLC_CATALOG_EMPTY_V5_20261005";
+export const CATALOG_BUILD_MARKER = "CLC_CATALOG_EMPTY_V6_NO_PREBUILT_20261005";
 
 export function primaryImage(p: { image?: string; images?: string[] } | null | undefined): string | undefined {
   if (!p) return undefined;
