@@ -4,7 +4,6 @@ import { ImagePlus, X } from "lucide-react";
 import {
   CATEGORIES,
   formatINR,
-  MAX_IMAGE_BYTES,
   MAX_PRODUCT_IMAGES,
   normalizeImages,
   primaryImage,
@@ -43,12 +42,34 @@ const emptyForm: ProductInput = {
   rx: false,
 };
 
-function readFileAsDataUrl(file: File): Promise<string> {
+function compressImage(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const max = 900;
+      const scale = Math.min(1, max / Math.max(img.width, img.height));
+      const width = Math.max(1, Math.round(img.width * scale));
+      const height = Math.max(1, Math.round(img.height * scale));
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        URL.revokeObjectURL(url);
+        reject(new Error("Could not resize image"));
+        return;
+      }
+      ctx.drawImage(img, 0, 0, width, height);
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.72);
+      URL.revokeObjectURL(url);
+      resolve(dataUrl);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Could not read image"));
+    };
+    img.src = url;
   });
 }
 
@@ -71,6 +92,7 @@ function AdminProducts() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<ProductInput>(emptyForm);
   const [urlDraft, setUrlDraft] = useState("");
+  const [saving, setSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const photos = normalizeImages(form.images, form.image);
@@ -137,13 +159,12 @@ function AdminProducts() {
         alert(`“${file.name}” is not an image.`);
         continue;
       }
-      if (file.size > MAX_IMAGE_BYTES) {
-        alert(`“${file.name}” is too large. Use a file under 1.5 MB.`);
+      if (file.size > 8 * 1024 * 1024) {
+        alert(`“${file.name}” is too large. Use a photo under 8 MB.`);
         continue;
       }
       try {
-        const dataUrl = await readFileAsDataUrl(file);
-        if (dataUrl) added.push(dataUrl);
+        added.push(await compressImage(file));
       } catch {
         alert(`Could not read “${file.name}”.`);
       }
@@ -169,7 +190,8 @@ function AdminProducts() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.name?.trim()) return;
+    if (!form.name?.trim() || saving) return;
+    setSaving(true);
     const payload: ProductInput = {
       ...form,
       images: photos,
@@ -189,6 +211,8 @@ function AdminProducts() {
     } catch (error) {
       console.error(error);
       alert("Could not save the product to the database. Check your Vercel database connection and deployment logs.");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -328,8 +352,8 @@ function AdminProducts() {
                   Product photos ({photos.length}/{MAX_PRODUCT_IMAGES})
                 </label>
                 <p style={{ fontSize: "0.85rem", color: "var(--color-muted)", margin: "0 0 10px" }}>
-                  Tap <strong>Add from gallery</strong> to allow photo access and pick images from your phone or computer.
-                  You can add up to {MAX_PRODUCT_IMAGES} photos per product (max 1.5 MB each).
+                  Tap <strong>Add from gallery</strong> to pick photos. They are resized automatically so saving stays fast.
+                  You can add up to {MAX_PRODUCT_IMAGES} photos per product.
                 </p>
 
                 <input
@@ -491,8 +515,8 @@ function AdminProducts() {
               </div>
             </div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 16 }}>
-              <button type="submit" className="btn btn-primary">
-                {editingId ? "Save changes" : "Create product"}
+              <button type="submit" className="btn btn-primary" disabled={saving}>
+                {saving ? "Saving…" : editingId ? "Save changes" : "Create product"}
               </button>
               <button
                 type="button"
