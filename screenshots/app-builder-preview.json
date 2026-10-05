@@ -1,0 +1,36 @@
+{
+  "url": "http://127.0.0.1:8080/",
+  "viewports": {
+    "desktop": {
+      "width": 1280,
+      "height": 800,
+      "status": 200,
+      "title": "CLC CureLifeCare — Home",
+      "hasCanvas": false,
+      "bodyTextLen": 2437,
+      "bodyTextHash": "40cee3b090fb78cf106f7e3800af1326d9e89aa38ebcfce2a94469b99651a5b2",
+      "bodyTextPrefix": "CureLifeCare Shop Medicines Wishlist Orders Help About Login Tru",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-preview.png"
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "status": 200,
+      "title": "CLC CureLifeCare — Home",
+      "hasCanvas": false,
+      "bodyTextLen": 2382,
+      "bodyTextHash": "9f8d8083d1212048887b0ec029165d4c92aca74a179c4c4d4ae18099c61e44a5",
+      "bodyTextPrefix": "Login Trusted online pharmacy Your health, delivered with care G",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-preview-mobile.png"
+    }
+  },
+  "brandWarnings": [],
+  "authWarnings": [],
+  "verdictFile": "/workspace/screenshots/app-builder-preview.json"
+}
