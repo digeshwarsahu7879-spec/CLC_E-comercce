@@ -64,7 +64,11 @@ export const CATEGORIES: Category[] = [
   { slug: "health-devices", name: "Devices", desc: "Home monitoring", image: "/images/cat-devices.jpg" },
 ];
 
-/** Seed catalog is empty — add products from the admin panel. */
+/**
+ * Seed catalog intentionally empty.
+ * All previous demo products (Paracetamol, Ibuprofen, etc.) were removed.
+ * Add real products from Admin → Products.
+ */
 export const PRODUCTS: Product[] = [];
 
 /** Admin login only (not shown on the login page). */
