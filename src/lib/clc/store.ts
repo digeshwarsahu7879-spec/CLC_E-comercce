@@ -117,22 +117,21 @@ type ClcState = {
 
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
 
+/** Only custom (admin-added) products are shown. Seed PRODUCTS is always empty. */
 function mergeCatalog(
   custom: Product[],
   edits: Record<string, Partial<Product>>,
   deleted: string[],
 ): Product[] {
   const deletedSet = new Set(deleted);
-  // PRODUCTS seed is empty — only non-deleted custom products appear.
-  const base = PRODUCTS.filter((p) => !deletedSet.has(p.id)).map((p) => {
-    const e = edits[p.id];
-    return e ? { ...p, ...e, id: p.id } : p;
-  });
-  const extras = custom.filter((p) => !deletedSet.has(p.id)).map((p) => {
-    const e = edits[p.id];
-    return e ? { ...p, ...e, id: p.id } : p;
-  });
-  return [...base, ...extras];
+  // Do NOT use PRODUCTS seed — it is permanently empty.
+  // Only show admin-created custom products that are not deleted.
+  return custom
+    .filter((p) => !deletedSet.has(p.id))
+    .map((p) => {
+      const e = edits[p.id];
+      return e ? { ...p, ...e, id: p.id } : p;
+    });
 }
 
 export const useClc = create<ClcState>()(
@@ -197,7 +196,12 @@ export const useClc = create<ClcState>()(
         const catName = (input.catName || cat).trim();
         const price = Math.max(0, Number(input.price) || 0);
         const old = Math.max(price, Number(input.old) || price);
-        const off = input.off != null ? Math.max(0, Math.min(99, Math.floor(Number(input.off) || 0))) : old > price ? Math.round(((old - price) / old) * 100) : 0;
+        const off =
+          input.off != null
+            ? Math.max(0, Math.min(99, Math.floor(Number(input.off) || 0)))
+            : old > price
+              ? Math.round(((old - price) / old) * 100)
+              : 0;
         const stock = Math.max(0, Math.floor(Number(input.stock) ?? 0));
         let slug = slugify(input.slug || name);
         const existing = get().listProducts();
@@ -264,9 +268,7 @@ export const useClc = create<ClcState>()(
           if (clash) slug = slug + "-" + Date.now().toString(36).slice(-4);
           next.slug = slug;
         }
-        if (input.stock != null) {
-          get().setStock(id, Number(input.stock));
-        }
+        if (input.stock != null) get().setStock(id, Number(input.stock));
         const isCustom = get().customProducts.some((p) => p.id === id);
         if (isCustom) {
           set((s) => ({
@@ -301,7 +303,6 @@ export const useClc = create<ClcState>()(
         get().showToast("Product removed");
       },
       applyCatalogOverrides: (rows) => {
-        // Always rebuild from DB rows. Empty array = clear everything.
         const customProducts: Product[] = [];
         const productEdits: Record<string, Partial<Product>> = {};
         const deletedProductIds: string[] = [];
@@ -312,15 +313,11 @@ export const useClc = create<ClcState>()(
             deletedProductIds.push(row.id);
             continue;
           }
+          // Only keep true custom products (admin-added)
           if (row.isCustom) {
             const p = row.data as Product;
             if (p && typeof p === "object" && p.name) {
               customProducts.push({ ...p, id: row.id });
-            }
-          } else if (row.data && typeof row.data === "object") {
-            // Only keep edits for products that still exist in seed PRODUCTS
-            if (PRODUCTS.some((p) => p.id === row.id)) {
-              productEdits[row.id] = { ...row.data, id: row.id };
             }
           }
           if (row.stock != null) stock[row.id] = Math.max(0, Number(row.stock) || 0);
@@ -468,8 +465,8 @@ export const useClc = create<ClcState>()(
         deletedProductIds: s.deletedProductIds,
         prescriptions: s.prescriptions,
       }),
-      // Version 4: force-clear any leftover seed/custom catalog from older builds.
-      version: 4,
+      // Version 5: wipe any leftover demo products from older builds
+      version: 5,
       migrate: () => ({
         cart: {},
         wish: [],
