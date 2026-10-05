@@ -146,8 +146,15 @@ export const removeCatalogProduct = createServerFn({ method: "POST" })
     `;
   });
 
+/** Mark every product in the database as deleted (seed + custom). */
 export const removeAllCatalogProducts = createServerFn({ method: "POST" }).handler(async (): Promise<void> => {
   const sql = await getSql();
+  // Soft-delete every row in clc_products (custom and non-custom).
+  await sql`
+    update clc_products
+    set is_deleted = true, updated_at = now()
+  `;
+  // Also mark any remaining seed IDs that may not have a DB row yet.
   for (const product of PRODUCTS) {
     await sql`
       insert into clc_products (id, is_custom, is_deleted, data, stock, updated_at)
@@ -156,11 +163,6 @@ export const removeAllCatalogProducts = createServerFn({ method: "POST" }).handl
       set is_deleted = true, updated_at = now()
     `;
   }
-  await sql`
-    update clc_products
-    set is_deleted = true, updated_at = now()
-    where is_custom = true
-  `;
 });
 
 export const resetCatalogStock = createServerFn({ method: "POST" }).handler(async (): Promise<void> => {
