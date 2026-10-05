@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getSql } from "@/lib/db";
-import { PRODUCTS, slugify, productId, type Product } from "./catalog";
+import { PRODUCTS, slugify, productId, normalizeImages, type Product } from "./catalog";
 import type { ProductInput } from "./store";
 
 type DbProductRow = {
@@ -39,6 +39,7 @@ function normalizeInput(input: ProductInput): Product {
     ? Math.max(0, Math.min(99, Math.floor(Number(input.off) || 0)))
     : old > price ? Math.round(((old - price) / old) * 100) : 0;
   const stock = Math.max(0, Math.floor(Number(input.stock ?? 0) || 0));
+  const images = normalizeImages(input.images, input.image);
   return {
     id: String(input.id || "").trim() || productId(),
     slug: slugify(input.slug || name),
@@ -56,7 +57,8 @@ function normalizeInput(input: ProductInput): Product {
     desc: String(input.desc || "").trim(),
     ingredients: String(input.ingredients || "").trim(),
     directions: String(input.directions || "").trim(),
-    image: String(input.image || "").trim() || undefined,
+    image: images[0],
+    images: images.length ? images : undefined,
   };
 }
 
@@ -95,14 +97,24 @@ export const updateCatalogProduct = createServerFn({ method: "POST" })
     const current = await sql<DbProductRow>`select id, is_custom, is_deleted, data, stock from clc_products where id = ${data.id}`;
     if (!current.length) {
       const stock = data.input.stock == null ? null : Math.max(0, Math.floor(Number(data.input.stock) || 0));
+      const images = normalizeImages(data.input.images, data.input.image);
+      const payload = { ...data.input, images: images.length ? images : undefined, image: images[0] };
       await sql`
         insert into clc_products (id, is_custom, is_deleted, data, stock, updated_at)
-        values (${data.id}, false, false, ${JSON.stringify(data.input)}::jsonb, ${stock}, now())
+        values (${data.id}, false, false, ${JSON.stringify(payload)}::jsonb, ${stock}, now())
       `;
-      return { id: data.id, isCustom: false, isDeleted: false, data: data.input, stock };
+      return { id: data.id, isCustom: false, isDeleted: false, data: payload, stock };
     }
     const row = current[0];
-    const nextData = { ...(row.data || {}), ...data.input };
+    const nextData: Record<string, unknown> = { ...(row.data || {}), ...data.input };
+    if (data.input.images != null || data.input.image != null) {
+      const images = normalizeImages(
+        data.input.images ?? (Array.isArray((row.data as Product)?.images) ? (row.data as Product).images : undefined),
+        data.input.image ?? (row.data as Product)?.image,
+      );
+      nextData.images = images.length ? images : undefined;
+      nextData.image = images[0];
+    }
     if (data.input.slug != null) {
       let nextSlug = slugify(String(data.input.slug));
       const seedClash = PRODUCTS.some((p) => p.slug === nextSlug && p.id !== data.id);
@@ -111,7 +123,7 @@ export const updateCatalogProduct = createServerFn({ method: "POST" })
       nextData.slug = nextSlug;
     }
     const stock = data.input.stock == null ? row.stock : Math.max(0, Math.floor(Number(data.input.stock) || 0));
-    delete (nextData as Record<string, unknown>).stock;
+    delete nextData.stock;
     await sql`
       update clc_products
       set data = ${JSON.stringify(nextData)}::jsonb,
@@ -136,9 +148,6 @@ export const removeCatalogProduct = createServerFn({ method: "POST" })
 
 export const removeAllCatalogProducts = createServerFn({ method: "POST" }).handler(async (): Promise<void> => {
   const sql = await getSql();
-  // Mark every seeded catalog product as deleted and also hide every custom
-  // product already stored in the database. Nothing is physically dropped,
-  // so the admin can safely add new products afterwards.
   for (const product of PRODUCTS) {
     await sql`
       insert into clc_products (id, is_custom, is_deleted, data, stock, updated_at)

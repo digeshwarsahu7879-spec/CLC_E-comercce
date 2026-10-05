@@ -15,8 +15,10 @@ export type Product = {
   desc: string;
   ingredients: string;
   directions: string;
-  /** Optional product image URL (https or data URL). When set, shown instead of the pack placeholder. */
+  /** Primary product image (first of images, kept for compatibility). */
   image?: string;
+  /** Up to MAX_PRODUCT_IMAGES photos (data URLs or https URLs). */
+  images?: string[];
 };
 
 export type Category = {
@@ -25,6 +27,31 @@ export type Category = {
   desc: string;
   image: string;
 };
+
+/** Maximum photos an admin can attach to one product. */
+export const MAX_PRODUCT_IMAGES = 5;
+
+/** Max size per photo in bytes (1.5 MB) when uploading from gallery. */
+export const MAX_IMAGE_BYTES = 1.5 * 1024 * 1024;
+
+/** Resolve the main photo shown on cards and listings. */
+export function primaryImage(p: { image?: string; images?: string[] } | null | undefined): string | undefined {
+  if (!p) return undefined;
+  if (p.images && p.images.length > 0) return p.images[0];
+  return p.image || undefined;
+}
+
+/** Normalize a list of image strings to at most MAX_PRODUCT_IMAGES non-empty values. */
+export function normalizeImages(list?: string[] | null, fallback?: string): string[] {
+  const out: string[] = [];
+  const push = (v: string | undefined) => {
+    const s = String(v || "").trim();
+    if (s && !out.includes(s) && out.length < MAX_PRODUCT_IMAGES) out.push(s);
+  };
+  if (Array.isArray(list)) list.forEach((x) => push(x));
+  if (out.length === 0) push(fallback);
+  return out;
+}
 
 export const CATEGORIES: Category[] = [
   { slug: "medicines", name: "Medicines", desc: "Fever, pain & digestion", image: "/images/cat-medicines.jpg" },

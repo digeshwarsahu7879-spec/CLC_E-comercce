@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { Heart, ShoppingCart } from "lucide-react";
-import { formatINR, type Product } from "@/lib/clc/catalog";
+import { formatINR, primaryImage, type Product } from "@/lib/clc/catalog";
 import { useClc } from "@/lib/clc/store";
 
 export function Pack({ tone, className = "", image }: { tone?: string; className?: string; image?: string }) {
@@ -18,15 +18,15 @@ export function ProductCard({ p }: { p: Product & { stock?: number } }) {
   const toggleWish = useClc((s) => s.toggleWish);
   const wish = useClc((s) => s.wish);
   const hydrated = useClc((s) => s.hydrated);
-  // Until persist rehydrates, use catalog stock / empty wish so SSR HTML matches client first paint
   const stock = hydrated ? getStock(p.id) : (typeof p.stock === "number" ? p.stock : 0);
   const out = stock < 1;
   const loved = hydrated && wish.includes(p.id);
+  const img = primaryImage(p);
 
   return (
     <article className="card prod-card">
       <Link to="/product/$slug" params={{ slug: p.slug }} className="prod-img">
-        <Pack tone={p.tone} image={p.image} />
+        <Pack tone={p.tone} image={img} />
         <div className="prod-badges">
           {p.off > 0 ? <span className="badge badge-sale">{p.off}% off</span> : null}
           {p.rx ? <span className="badge badge-rx">Rx</span> : null}
