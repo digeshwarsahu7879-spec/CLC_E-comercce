@@ -446,25 +446,19 @@ export const useClc = create<ClcState>()(
         deletedProductIds: s.deletedProductIds,
         prescriptions: s.prescriptions,
       }),
-      // Persisted browser state can come from an older version of the app.
-      // Normalize collection fields before React reads them so a stale/corrupt
-      // localStorage value (for example `wish: null`) cannot crash Layout with
-      // "Cannot read properties of undefined/null (reading 'length')".
-      version: 2,
-      migrate: (persisted) => {
-        const p = (persisted ?? {}) as Partial<ClcState>;
-        return {
-          cart: p.cart && typeof p.cart === "object" ? p.cart : {},
-          wish: Array.isArray(p.wish) ? p.wish : [],
-          orders: Array.isArray(p.orders) ? p.orders : [],
-          user: p.user ?? null,
-          stock: p.stock && typeof p.stock === "object" ? p.stock : {},
-          customProducts: Array.isArray(p.customProducts) ? p.customProducts : [],
-          productEdits: p.productEdits && typeof p.productEdits === "object" ? p.productEdits : {},
-          deletedProductIds: Array.isArray(p.deletedProductIds) ? p.deletedProductIds : [],
-          prescriptions: Array.isArray(p.prescriptions) ? p.prescriptions : [],
-        };
-      },
+      // Version 3: wipe all catalog data so the store starts with zero products.
+      version: 3,
+      migrate: () => ({
+        cart: {},
+        wish: [],
+        orders: [],
+        user: null,
+        stock: {},
+        customProducts: [],
+        productEdits: {},
+        deletedProductIds: [],
+        prescriptions: [],
+      }),
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<ClcState>;
         return {

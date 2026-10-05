@@ -37,40 +37,6 @@ export const CATEGORIES: Category[] = [
   { slug: "health-devices", name: "Devices", desc: "Home monitoring", image: "/images/cat-devices.jpg" },
 ];
 
-/** Public seed catalog shown on the storefront. Admins can still add, edit, or hide items. */
-function item(
-  id: string,
-  slug: string,
-  name: string,
-  brand: string,
-  cat: string,
-  price: number,
-  extra: Partial<Product> = {},
-): Product {
-  const catName = CATEGORIES.find((c) => c.slug === cat)?.name || cat;
-  const old = extra.old ?? Math.round(price * 1.28);
-  const off = extra.off ?? Math.max(0, Math.round((1 - price / old) * 100));
-  return {
-    id,
-    slug,
-    name,
-    brand,
-    cat,
-    catName,
-    price,
-    old,
-    off,
-    stock: extra.stock ?? 48,
-    tone: extra.tone || "tone-moss",
-    rx: extra.rx ?? false,
-    pack: extra.pack || "Strip of 10",
-    desc: extra.desc || name,
-    ingredients: extra.ingredients || "",
-    directions: extra.directions || "Use as directed on the pack, or ask your pharmacist.",
-    image: extra.image,
-  };
-}
-
 /** Seed catalog is empty — add products from the admin panel. */
 export const PRODUCTS: Product[] = [];
 
