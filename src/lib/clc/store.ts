@@ -4,6 +4,7 @@ import {
   DEMO_USERS,
   PRODUCTS,
   getProduct as findInList,
+  normalizeImages,
   productId,
   shippingFor,
   slugify,
@@ -71,6 +72,7 @@ export type ProductInput = {
   ingredients?: string;
   directions?: string;
   image?: string;
+  images?: string[];
   slug?: string;
 };
 
@@ -80,11 +82,8 @@ type ClcState = {
   orders: Order[];
   user: ClcUser | null;
   stock: Record<string, number>;
-  /** Full custom products added by admin */
   customProducts: Product[];
-  /** Partial overrides for seed products */
   productEdits: Record<string, Partial<Product>>;
-  /** Soft-deleted seed or custom product ids */
   deletedProductIds: string[];
   prescriptions: Prescription[];
   toast: string | null;
@@ -193,6 +192,7 @@ export const useClc = create<ClcState>()(
         if (existing.some((p) => p.slug === slug)) {
           slug = slug + "-" + Date.now().toString(36).slice(-4);
         }
+        const images = normalizeImages(input.images, input.image);
         const product: Product = {
           id: productId(),
           slug,
@@ -210,7 +210,8 @@ export const useClc = create<ClcState>()(
           desc: (input.desc || "").trim(),
           ingredients: (input.ingredients || "").trim(),
           directions: (input.directions || "").trim(),
-          image: (input.image || "").trim() || undefined,
+          image: images[0],
+          images: images.length ? images : undefined,
         };
         set((s) => ({
           customProducts: [...s.customProducts, product],
@@ -240,7 +241,11 @@ export const useClc = create<ClcState>()(
         if (input.desc != null) next.desc = String(input.desc).trim();
         if (input.ingredients != null) next.ingredients = String(input.ingredients).trim();
         if (input.directions != null) next.directions = String(input.directions).trim();
-        if (input.image != null) next.image = String(input.image).trim() || undefined;
+        if (input.images != null || input.image != null) {
+          const images = normalizeImages(input.images ?? current.images, input.image ?? current.image);
+          next.images = images.length ? images : undefined;
+          next.image = images[0];
+        }
         if (input.slug != null) {
           let slug = slugify(input.slug);
           const clash = get().listProducts().some((p) => p.slug === slug && p.id !== id);
@@ -285,7 +290,6 @@ export const useClc = create<ClcState>()(
       },
       applyCatalogOverrides: (rows) => {
         if (!rows || rows.length === 0) {
-          // Fresh / empty DB should not wipe products already saved on this device.
           return;
         }
         const customProducts: Product[] = [];
@@ -446,7 +450,6 @@ export const useClc = create<ClcState>()(
         deletedProductIds: s.deletedProductIds,
         prescriptions: s.prescriptions,
       }),
-      // Version 3: wipe all catalog data so the store starts with zero products.
       version: 3,
       migrate: () => ({
         cart: {},

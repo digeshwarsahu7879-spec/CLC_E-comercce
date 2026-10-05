@@ -1,9 +1,24 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
-import { CATEGORIES, formatINR, type Product } from "@/lib/clc/catalog";
+import { useMemo, useRef, useState } from "react";
+import { ImagePlus, X } from "lucide-react";
+import {
+  CATEGORIES,
+  formatINR,
+  MAX_IMAGE_BYTES,
+  MAX_PRODUCT_IMAGES,
+  normalizeImages,
+  primaryImage,
+  type Product,
+} from "@/lib/clc/catalog";
 import { useClc, type ProductInput } from "@/lib/clc/store";
 import { AdminLayout } from "@/components/clc/AdminLayout";
-import { createCatalogProduct, getCatalogOverrides, removeAllCatalogProducts, removeCatalogProduct, updateCatalogProduct } from "@/lib/clc/products";
+import {
+  createCatalogProduct,
+  getCatalogOverrides,
+  removeAllCatalogProducts,
+  removeCatalogProduct,
+  updateCatalogProduct,
+} from "@/lib/clc/products";
 
 export const Route = createFileRoute("/admin/products")({
   component: AdminProducts,
@@ -24,8 +39,18 @@ const emptyForm: ProductInput = {
   ingredients: "",
   directions: "",
   image: "",
+  images: [],
   rx: false,
 };
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
 
 function AdminProducts() {
   const listProducts = useClc((s) => s.listProducts);
@@ -45,14 +70,21 @@ function AdminProducts() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<ProductInput>(emptyForm);
+  const [urlDraft, setUrlDraft] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const photos = normalizeImages(form.images, form.image);
+  const canAddMore = photos.length < MAX_PRODUCT_IMAGES;
 
   function openAdd() {
     setEditingId(null);
-    setForm({ ...emptyForm, cat: "medicines", catName: "Medicines" });
+    setForm({ ...emptyForm, cat: "medicines", catName: "Medicines", images: [] });
+    setUrlDraft("");
     setShowForm(true);
   }
 
   function openEdit(p: Product) {
+    const imgs = normalizeImages(p.images, p.image);
     setEditingId(p.id);
     setForm({
       name: p.name,
@@ -67,11 +99,13 @@ function AdminProducts() {
       desc: p.desc,
       ingredients: p.ingredients,
       directions: p.directions,
-      image: p.image || "",
+      image: imgs[0] || "",
+      images: imgs,
       rx: p.rx,
       slug: p.slug,
       tone: p.tone,
     });
+    setUrlDraft("");
     setShowForm(true);
   }
 
@@ -80,19 +114,78 @@ function AdminProducts() {
     setForm((f) => ({ ...f, cat: slug, catName: c?.name || slug }));
   }
 
+  function setPhotos(next: string[]) {
+    const images = normalizeImages(next);
+    setForm((f) => ({ ...f, images, image: images[0] || "" }));
+  }
+
+  function removePhoto(index: number) {
+    setPhotos(photos.filter((_, i) => i !== index));
+  }
+
+  async function onGalleryFiles(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    const room = MAX_PRODUCT_IMAGES - photos.length;
+    if (room <= 0) {
+      alert(`You can add up to ${MAX_PRODUCT_IMAGES} photos per product.`);
+      return;
+    }
+    const picked = Array.from(files).slice(0, room);
+    const added: string[] = [];
+    for (const file of picked) {
+      if (!file.type.startsWith("image/")) {
+        alert(`“${file.name}” is not an image.`);
+        continue;
+      }
+      if (file.size > MAX_IMAGE_BYTES) {
+        alert(`“${file.name}” is too large. Use a file under 1.5 MB.`);
+        continue;
+      }
+      try {
+        const dataUrl = await readFileAsDataUrl(file);
+        if (dataUrl) added.push(dataUrl);
+      } catch {
+        alert(`Could not read “${file.name}”.`);
+      }
+    }
+    if (added.length) setPhotos([...photos, ...added]);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  function addImageUrl() {
+    const url = urlDraft.trim();
+    if (!url) return;
+    if (!canAddMore) {
+      alert(`You can add up to ${MAX_PRODUCT_IMAGES} photos per product.`);
+      return;
+    }
+    if (!/^https?:\/\//i.test(url) && !url.startsWith("data:")) {
+      alert("Please enter a valid image URL starting with https://");
+      return;
+    }
+    setPhotos([...photos, url]);
+    setUrlDraft("");
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.name?.trim()) return;
+    const payload: ProductInput = {
+      ...form,
+      images: photos,
+      image: photos[0] || "",
+    };
     try {
       if (editingId) {
-        await updateCatalogProduct({ data: { id: editingId, input: form } });
+        await updateCatalogProduct({ data: { id: editingId, input: payload } });
       } else {
-        await createCatalogProduct({ data: form });
+        await createCatalogProduct({ data: payload });
       }
       applyCatalogOverrides(await getCatalogOverrides());
       setShowForm(false);
       setEditingId(null);
       setForm(emptyForm);
+      setUrlDraft("");
     } catch (error) {
       console.error(error);
       alert("Could not save the product to the database. Check your Vercel database connection and deployment logs.");
@@ -228,67 +321,139 @@ function AdminProducts() {
                   placeholder="15 tablets"
                 />
               </div>
+
+              {/* Product photos — gallery access */}
               <div style={{ gridColumn: "1 / -1" }}>
-                <label className="form-label">Product image</label>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-start" }}>
-                  <div style={{ flex: "1 1 220px" }}>
-                    <input
-                      className="form-input"
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (!file) return;
-                        if (file.size > 1.5 * 1024 * 1024) {
-                          alert("Image too large. Please use a file under 1.5 MB.");
-                          e.target.value = "";
-                          return;
-                        }
-                        const reader = new FileReader();
-                        reader.onload = () => {
-                          const result = typeof reader.result === "string" ? reader.result : "";
-                          setForm((f) => ({ ...f, image: result }));
-                        };
-                        reader.readAsDataURL(file);
-                      }}
-                    />
-                    <p style={{ fontSize: "0.8rem", color: "var(--color-muted)", marginTop: 6 }}>
-                      Upload a photo (JPG/PNG, max 1.5 MB) or paste an image URL below.
-                    </p>
-                    <input
-                      className="form-input"
-                      style={{ marginTop: 8 }}
-                      value={form.image?.startsWith("data:") ? "" : form.image || ""}
-                      onChange={(e) => setForm((f) => ({ ...f, image: e.target.value }))}
-                      placeholder="https://… (optional image URL)"
-                    />
-                  </div>
-                  {form.image ? (
-                    <div style={{ textAlign: "center" }}>
-                      <img
-                        src={form.image}
-                        alt="Preview"
-                        style={{
-                          width: 96,
-                          height: 96,
-                          objectFit: "cover",
-                          borderRadius: 12,
-                          border: "1px solid var(--color-line)",
-                          background: "var(--color-mist)",
-                        }}
-                      />
-                      <button
-                        type="button"
-                        className="btn btn-ghost btn-sm"
-                        style={{ display: "block", marginTop: 6 }}
-                        onClick={() => setForm((f) => ({ ...f, image: "" }))}
-                      >
-                        Clear image
-                      </button>
-                    </div>
+                <label className="form-label">
+                  Product photos ({photos.length}/{MAX_PRODUCT_IMAGES})
+                </label>
+                <p style={{ fontSize: "0.85rem", color: "var(--color-muted)", margin: "0 0 10px" }}>
+                  Tap <strong>Add from gallery</strong> to allow photo access and pick images from your phone or computer.
+                  You can add up to {MAX_PRODUCT_IMAGES} photos per product (max 1.5 MB each).
+                </p>
+
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  style={{ display: "none" }}
+                  onChange={(e) => void onGalleryFiles(e.target.files)}
+                />
+
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", marginBottom: 12 }}>
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    disabled={!canAddMore}
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <ImagePlus size={16} style={{ marginRight: 6 }} />
+                    Add from gallery
+                  </button>
+                  {!canAddMore ? (
+                    <span style={{ fontSize: "0.85rem", color: "var(--color-muted)" }}>
+                      Maximum {MAX_PRODUCT_IMAGES} photos reached
+                    </span>
                   ) : null}
                 </div>
+
+                {photos.length > 0 ? (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 12 }}>
+                    {photos.map((src, i) => (
+                      <div
+                        key={i}
+                        style={{
+                          position: "relative",
+                          width: 96,
+                          height: 96,
+                          borderRadius: 12,
+                          overflow: "hidden",
+                          border: i === 0 ? "2px solid var(--color-primary, #0f766e)" : "1px solid var(--color-line)",
+                          background: "var(--color-mist)",
+                        }}
+                      >
+                        <img
+                          src={src}
+                          alt={`Product photo ${i + 1}`}
+                          style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                        />
+                        {i === 0 ? (
+                          <span
+                            style={{
+                              position: "absolute",
+                              bottom: 4,
+                              left: 4,
+                              fontSize: 10,
+                              fontWeight: 600,
+                              background: "rgba(15,118,110,0.9)",
+                              color: "#fff",
+                              padding: "2px 6px",
+                              borderRadius: 6,
+                            }}
+                          >
+                            Main
+                          </span>
+                        ) : null}
+                        <button
+                          type="button"
+                          aria-label={`Remove photo ${i + 1}`}
+                          onClick={() => removePhoto(i)}
+                          style={{
+                            position: "absolute",
+                            top: 4,
+                            right: 4,
+                            width: 24,
+                            height: 24,
+                            borderRadius: "50%",
+                            border: "none",
+                            background: "rgba(0,0,0,0.65)",
+                            color: "#fff",
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            padding: 0,
+                          }}
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div
+                    style={{
+                      border: "1px dashed var(--color-line)",
+                      borderRadius: 12,
+                      padding: 20,
+                      textAlign: "center",
+                      color: "var(--color-muted)",
+                      marginBottom: 12,
+                      fontSize: "0.9rem",
+                    }}
+                  >
+                    No photos yet. Use “Add from gallery” to choose pictures.
+                  </div>
+                )}
+
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "flex-end" }}>
+                  <div style={{ flex: "1 1 220px" }}>
+                    <label className="form-label">Or paste image URL</label>
+                    <input
+                      className="form-input"
+                      value={urlDraft}
+                      onChange={(e) => setUrlDraft(e.target.value)}
+                      placeholder="https://…"
+                      disabled={!canAddMore}
+                    />
+                  </div>
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={addImageUrl} disabled={!canAddMore || !urlDraft.trim()}>
+                    Add URL
+                  </button>
+                </div>
               </div>
+
               <div style={{ gridColumn: "1 / -1" }}>
                 <label className="form-label">Description</label>
                 <textarea
@@ -369,13 +534,15 @@ function AdminProducts() {
                 live.map((p) => {
                   const cls = p.stock < 1 ? "stock-out" : p.stock <= 20 ? "stock-low" : "stock-ok";
                   const label = p.stock < 1 ? "Out" : p.stock;
+                  const thumb = primaryImage(p);
+                  const photoCount = normalizeImages(p.images, p.image).length;
                   return (
                     <tr key={p.id}>
                       <td>
                         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                          {p.image ? (
+                          {thumb ? (
                             <img
-                              src={p.image}
+                              src={thumb}
                               alt=""
                               style={{
                                 width: 40,
@@ -389,7 +556,10 @@ function AdminProducts() {
                           <div>
                             <strong>{p.name}</strong>
                             <br />
-                            <span style={{ fontSize: "0.75rem", color: "var(--color-muted)" }}>{p.id}</span>
+                            <span style={{ fontSize: "0.75rem", color: "var(--color-muted)" }}>
+                              {p.id}
+                              {photoCount > 0 ? ` · ${photoCount} photo${photoCount > 1 ? "s" : ""}` : ""}
+                            </span>
                           </div>
                         </div>
                       </td>
