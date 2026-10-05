@@ -4,7 +4,7 @@ import { ShoppingCart } from "lucide-react";
 import { formatINR, normalizeImages, primaryImage } from "@/lib/clc/catalog";
 import { liveProduct, useClc } from "@/lib/clc/store";
 import { Layout } from "@/components/clc/Layout";
-import { Pack, ProductCard } from "@/components/clc/ProductCard";
+import { ProductCard } from "@/components/clc/ProductCard";
 
 export const Route = createFileRoute("/product/$slug")({
   component: ProductPage,
@@ -62,8 +62,30 @@ function ProductPage() {
         </div>
         <div className="pdp-grid">
           <div>
-            <div className="pdp-gallery card" style={{ position: "relative" }}>
-              <Pack tone={p.tone} image={main} />
+            <div
+              className="pdp-gallery card"
+              style={{
+                position: "relative",
+                overflow: "hidden",
+                background: "#fff",
+                height: "min(88vw, 560px)",
+                minHeight: 360,
+                padding: 12,
+                display: "grid",
+                placeItems: "center",
+              }}
+            >
+              <img
+                src={main}
+                alt={p.name}
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "contain",
+                  objectPosition: "center",
+                  display: "block",
+                }}
+              />
               <div className="prod-badges" style={{ position: "absolute", top: 16, left: 16 }}>
                 {p.off > 0 ? <span className="badge badge-sale">{p.off}% off</span> : null}
                 {p.rx ? <span className="badge badge-rx">Rx</span> : null}
@@ -85,17 +107,17 @@ function ProductPage() {
                     onClick={() => setActiveImg(i)}
                     aria-label={`Photo ${i + 1}`}
                     style={{
-                      width: 64,
-                      height: 64,
-                      padding: 0,
-                      borderRadius: 10,
+                      width: 84,
+                      height: 84,
+                      padding: 4,
+                      borderRadius: 12,
                       border: i === activeImg ? "2px solid var(--color-primary, #0f766e)" : "1px solid var(--color-line)",
                       overflow: "hidden",
                       cursor: "pointer",
-                      background: "var(--color-mist)",
+                      background: "#fff",
                     }}
                   >
-                    <img src={src} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                    <img src={src} alt="" style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }} />
                   </button>
                 ))}
               </div>
