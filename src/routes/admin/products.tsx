@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ImagePlus, X } from "lucide-react";
 import {
   CATEGORIES,
@@ -13,6 +13,7 @@ import { useClc, type ProductInput } from "@/lib/clc/store";
 import { AdminLayout } from "@/components/clc/AdminLayout";
 import {
   createCatalogProduct,
+  getAdminProducts,
   getCatalogOverrides,
   removeAllCatalogProducts,
   removeCatalogProduct,
@@ -93,7 +94,29 @@ function AdminProducts() {
   const [form, setForm] = useState<ProductInput>(emptyForm);
   const [urlDraft, setUrlDraft] = useState("");
   const [saving, setSaving] = useState(false);
+  const [loadingList, setLoadingList] = useState(true);
+  const [listError, setListError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  async function reloadProducts() {
+    setLoadingList(true);
+    setListError("");
+    try {
+      const rows = await getAdminProducts();
+      applyCatalogOverrides(rows);
+    } catch (error) {
+      console.error(error);
+      setListError("Could not load the product list. Pull to refresh and try again.");
+    } finally {
+      setLoadingList(false);
+    }
+  }
+
+  useEffect(() => {
+    void reloadProducts();
+    // Load the full list once when the admin page opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const photos = normalizeImages(form.images, form.image);
   const canAddMore = photos.length < MAX_PRODUCT_IMAGES;
@@ -206,7 +229,7 @@ function AdminProducts() {
       }
       saved = true;
       try {
-        applyCatalogOverrides(await getCatalogOverrides());
+        await reloadProducts();
       } catch (refreshError) {
         console.error(refreshError);
       }
@@ -541,101 +564,64 @@ function AdminProducts() {
         </div>
       ) : null}
 
-      <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        <div className="admin-table-wrap">
-          <table className="admin-table">
-            <thead>
-              <tr>
-                <th>Product</th>
-                <th>Brand</th>
-                <th>Category</th>
-                <th>Price</th>
-                <th>Stock</th>
-                <th>Discount</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {live.length === 0 ? (
-                <tr>
-                  <td colSpan={7} style={{ padding: 24, color: "var(--color-muted)" }}>
-                    No products. Click “Add product” to create one.
-                  </td>
-                </tr>
-              ) : (
-                live.map((p) => {
-                  const cls = p.stock < 1 ? "stock-out" : p.stock <= 20 ? "stock-low" : "stock-ok";
-                  const label = p.stock < 1 ? "Out" : p.stock;
-                  const thumb = primaryImage(p);
-                  const photoCount = normalizeImages(p.images, p.image).length;
-                  return (
-                    <tr key={p.id}>
-                      <td>
-                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                          {thumb ? (
-                            <img
-                              src={thumb}
-                              alt=""
-                              style={{
-                                width: 40,
-                                height: 40,
-                                objectFit: "cover",
-                                borderRadius: 8,
-                                background: "var(--color-line)",
-                              }}
-                            />
-                          ) : null}
-                          <div>
-                            <strong>{p.name}</strong>
-                            <br />
-                            <span style={{ fontSize: "0.75rem", color: "var(--color-muted)" }}>
-                              {p.id}
-                              {photoCount > 0 ? ` · ${photoCount} photo${photoCount > 1 ? "s" : ""}` : ""}
-                            </span>
-                          </div>
-                        </div>
-                      </td>
-                      <td>{p.brand}</td>
-                      <td>{p.catName}</td>
-                      <td>{formatINR(p.price)}</td>
-                      <td>
-                        <span className={cls}>{label}</span>
-                      </td>
-                      <td>{p.off ? `${p.off}%` : "—"}</td>
-                      <td>
-                        <div className="admin-actions">
-                          <button type="button" className="btn btn-ghost btn-sm" onClick={() => openEdit(p)}>
-                            Edit
-                          </button>
-                          <Link to="/admin/stock" className="btn btn-ghost btn-sm">
-                            Stock
-                          </Link>
-                          <button
-                            type="button"
-                            className="btn btn-ghost btn-sm"
-                            style={{ color: "var(--color-danger, #b91c1c)" }}
-                            onClick={() => {
-                              if (confirm(`Remove “${p.name}”?`)) {
-                                void removeCatalogProduct({ data: { id: p.id } })
-                                  .then(async () => applyCatalogOverrides(await getCatalogOverrides()))
-                                  .catch((error) => {
-                                    console.error(error);
-                                    alert("Could not remove the product from the database.");
-                                  });
-                              }
-                            }}
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+      {listError ? (
+        <p style={{ color: "var(--color-danger, #b91c1c)", marginBottom: 12 }}>{listError}</p>
+      ) : null}
+      <div style={{ display: "grid", gap: 10 }}>
+        {loadingList && live.length === 0 ? (
+          <div className="card" style={{ padding: 20, color: "var(--color-muted)" }}>Loading products…</div>
+        ) : live.length === 0 ? (
+          <div className="card" style={{ padding: 20, color: "var(--color-muted)" }}>
+            No products yet. Click “Add product” to create one.
+          </div>
+        ) : (
+          live.map((p) => {
+            const label = p.stock < 1 ? "Out of stock" : `${p.stock} in stock`;
+            return (
+              <article key={p.id} className="card" style={{ padding: 14, display: "grid", gap: 8 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start" }}>
+                  <div>
+                    <strong style={{ fontSize: "1rem" }}>{p.name}</strong>
+                    <p style={{ margin: "4px 0 0", color: "var(--color-muted)", fontSize: "0.85rem" }}>
+                      {p.brand} · {p.catName}
+                    </p>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <strong>{formatINR(p.price)}</strong>
+                    <p style={{ margin: "4px 0 0", fontSize: "0.8rem", color: "var(--color-muted)" }}>{label}</p>
+                  </div>
+                </div>
+                <p style={{ margin: 0, fontSize: "0.8rem", color: "var(--color-muted)" }}>
+                  {p.off ? `${p.off}% off` : "No discount"} · {p.pack || "1 unit"}
+                </p>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => openEdit(p)}>
+                    Edit
+                  </button>
+                  <Link to="/admin/stock" className="btn btn-ghost btn-sm">
+                    Stock
+                  </Link>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    style={{ color: "var(--color-danger, #b91c1c)" }}
+                    onClick={() => {
+                      if (!confirm(`Remove “${p.name}”?`)) return;
+                      void removeCatalogProduct({ data: { id: p.id } })
+                        .then(() => reloadProducts())
+                        .catch((error) => {
+                          console.error(error);
+                          alert("Could not remove the product from the database.");
+                        });
+                    }}
+                  >
+                    Remove
+                  </button>
+                </div>
+              </article>
+            );
+          })
+        )}
       </div>
     </AdminLayout>
   );
