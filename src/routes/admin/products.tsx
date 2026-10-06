@@ -47,7 +47,7 @@ function compressImage(file: File): Promise<string> {
     const url = URL.createObjectURL(file);
     const img = new Image();
     img.onload = () => {
-      const max = 900;
+      const max = 640;
       const scale = Math.min(1, max / Math.max(img.width, img.height));
       const width = Math.max(1, Math.round(img.width * scale));
       const height = Math.max(1, Math.round(img.height * scale));
@@ -61,7 +61,7 @@ function compressImage(file: File): Promise<string> {
         return;
       }
       ctx.drawImage(img, 0, 0, width, height);
-      const dataUrl = canvas.toDataURL("image/jpeg", 0.72);
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.6);
       URL.revokeObjectURL(url);
       resolve(dataUrl);
     };
@@ -197,20 +197,28 @@ function AdminProducts() {
       images: photos,
       image: photos[0] || "",
     };
+    let saved = false;
     try {
       if (editingId) {
         await updateCatalogProduct({ data: { id: editingId, input: payload } });
       } else {
         await createCatalogProduct({ data: payload });
       }
-      applyCatalogOverrides(await getCatalogOverrides());
+      saved = true;
+      try {
+        applyCatalogOverrides(await getCatalogOverrides());
+      } catch (refreshError) {
+        console.error(refreshError);
+      }
       setShowForm(false);
       setEditingId(null);
       setForm(emptyForm);
       setUrlDraft("");
     } catch (error) {
       console.error(error);
-      alert("Could not save the product to the database. Check your Vercel database connection and deployment logs.");
+      if (!saved) {
+        alert("Could not save the product to the database. Check your Vercel database connection and deployment logs.");
+      }
     } finally {
       setSaving(false);
     }
