@@ -111,6 +111,7 @@ type ClcState = {
   logout: () => void;
   placeOrder: (payload: Omit<Order, "id" | "createdAt" | "status"> & { status?: OrderStatus }) => Order;
   setOrderStatus: (id: string, status: OrderStatus) => void;
+  removeOrder: (id: string) => void;
   addPrescription: (fileName: string, sizeKb: number) => Prescription;
   setPrescriptionStatus: (id: string, status: Prescription["status"]) => void;
 };
@@ -432,6 +433,10 @@ export const useClc = create<ClcState>()(
           });
           return { orders };
         });
+      },
+      removeOrder: (id) => {
+        set((s) => ({ orders: s.orders.filter((o) => o.id !== id) }));
+        get().showToast("Order removed");
       },
       addPrescription: (fileName, sizeKb) => {
         const rx: Prescription = {
