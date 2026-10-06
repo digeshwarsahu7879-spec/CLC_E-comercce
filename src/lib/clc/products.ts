@@ -69,7 +69,22 @@ export const getCatalogOverrides = createServerFn({ method: "GET" }).handler(
       select id, is_custom, is_deleted, data, stock
       from clc_products
       where is_deleted = false
-      order by updated_at asc
+      order by updated_at desc
+    `;
+    return rows.map(rowToOverride);
+  },
+);
+
+
+export const getAdminProducts = createServerFn({ method: "GET" }).handler(
+  async (): Promise<CatalogOverride[]> => {
+    const sql = await getSql();
+    const rows = await sql<DbProductRow>`
+      select id, is_custom, is_deleted, stock,
+        (data - 'image' - 'images') as data
+      from clc_products
+      where is_deleted = false
+      order by updated_at desc
     `;
     return rows.map(rowToOverride);
   },
