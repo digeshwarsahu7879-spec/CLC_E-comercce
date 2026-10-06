@@ -68,6 +68,7 @@ export const getCatalogOverrides = createServerFn({ method: "GET" }).handler(
     const rows = await sql<DbProductRow>`
       select id, is_custom, is_deleted, data, stock
       from clc_products
+      where is_deleted = false
       order by updated_at asc
     `;
     return rows.map(rowToOverride);
